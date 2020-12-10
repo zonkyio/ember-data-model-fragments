@@ -30,6 +30,7 @@ export default class FragmentRecordData extends RecordData {
     this.fragmentData = Object.create(null);
     this.serverFragments = Object.create(null);
     this.inFlightFragments = Object.create(null);
+    this.forLaterFragments = Object.create(null);
 
     this.fragments = Object.create(null);
     this.fragmentNames = [];
@@ -418,16 +419,28 @@ export default class FragmentRecordData extends RecordData {
     }
     for (let key in this.inFlightFragments) {
       fragment = this.inFlightFragments[key];
+
+      if (!fragment) {
+        this.forLaterFragments[key] = this.serverFragments[key];
+      }
+
       delete this.inFlightFragments[key];
       this.serverFragments[key] = fragment;
     }
     this.fragmentNames.forEach(key => {
-      fragment = this.serverFragments[key];
-      if (fragment) {
-        fragment._didCommit(attributes[key]);
-      }
+      let value = attributes[key];
       // this is here so that the super call does not process this key
       delete attributes[key];
+      
+      fragment = this.serverFragments[key];
+      if (fragment) {
+        fragment._didCommit(value);
+      } else if (this.forLaterFragments[key]) {
+        fragment = this.serverFragments[key] = this.forLaterFragments[key];
+        delete this.forLaterFragments[key];
+        fragment._didCommit(value);
+        attributes[key] = fragment;
+      }
     });
     return super.didCommit(data);
   }
